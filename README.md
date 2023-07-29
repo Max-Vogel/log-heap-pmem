@@ -6,4 +6,13 @@
 
 # :notebook: &nbsp; Aufgabenbeschreibung
 
-_Hier den erstellten Entwurf einfügen_
+- Implementierung eines Log strukturierten persistenten Speichers
+- Logstruktur: Wenn Objekte neu erstellt oder verändert werden, werden sie an das Ende des Logs angehangen
+- Hashtabelle zum verwalten der Objekte liegt im RAM
+- Objekte benötigen ID und Versionsnummer (bzw. etwas um die aktuellste Version zu erkennen)
+- Bei Absturz des Systems wird die Hashtabelle neu aufgebaut, indem der persistente Speicher durchgegangen wird
+- Log in Segmente unterteilt (wie bei RAMCloud)
+- Cleaner entfernt alte Versionen von Objekten und gelöschte Objekte
+- Cleaner kompaktiert den Speicher, indem Objekte aus Segmenten mit vielen leeren Stellen in neue Segmente kopiert werden und das alte Segment freigegeben wird
+- Die Komplexität des Cleaners wird angepasst, je nachdem wie gut und schnell ich voran komme
+- Die Performance wird mithilfe von YCSB getestet
