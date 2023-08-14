@@ -1,0 +1,202 @@
+#include "cleaner.h"
+#include "hash_table.h"
+#include "log.h"
+#include "log_pmem.h"
+
+
+void err_config(pmem_t *pmem) {
+    close(pmem->fd);
+}
+
+void err_granularity(pmem_t *pmem, struct pmem2_config *cfg) {
+    pmem2_config_delete(&cfg);
+    err_config(pmem);
+}
+
+void err_map(pmem_t *pmem, struct pmem2_config *cfg, struct pmem2_source *src) {
+    pmem2_source_delete(&src);
+    err_granularity(pmem, cfg);
+}
+
+void err_src_delete(pmem_t *pmem, struct pmem2_config *cfg, struct pmem2_source *src) {
+    pmem2_map_delete(&pmem->map);
+    err_map(pmem, cfg, src);
+}
+
+int init_pmem(pmem_t *pmem, char *path) {
+    pmem->fd = open(path, O_RDWR);
+    if(pmem->fd < 0) {
+        perror("open");
+        return 1;
+    }
+
+    struct pmem2_config *cfg;
+    if(pmem2_config_new(&cfg)) {
+        pmem2_perror("pmem2_config_new");
+        err_config(pmem);
+        return 1;
+	}
+
+    if(pmem2_config_set_required_store_granularity(cfg, PMEM2_GRANULARITY_PAGE)) {
+        pmem2_perror("pmem2_config_set_required_store_granularity");
+        err_granularity(pmem, cfg);
+        return 1;
+	}
+
+	struct pmem2_source *src;
+    if(pmem2_source_from_fd(&src, pmem->fd)) {
+        pmem2_perror("pmem2_source_from_fd");
+        err_granularity(pmem, cfg);
+        return 1;
+	}
+
+    // size_t alignment;
+    // if(pmem2_source_alignment(src, &alignment)) {
+    //     pmem2_perror("pmem2_source_alignment");
+    //     return 1;
+    // }
+
+    // if(pmem2_config_set_length(cfg, LOG_LENGTH)) {
+    //     pmem2_perror("pmem2_config_set_length");
+    // }
+
+    if(pmem2_map_new(&pmem->map, cfg, src)) {
+        pmem2_perror("pmem2_map_new");
+        err_map(pmem, cfg, src);
+        return 1;
+	}
+    
+    // TODO: Größe prüfen
+    pmem->size = pmem2_map_get_size(pmem->map) - sizeof(log_t);
+    pmem->persist = pmem2_get_persist_fn(pmem->map);
+    pmem->memcpy_fn = pmem2_get_memcpy_fn(pmem->map);
+    pmem->log = pmem2_map_get_address(pmem->map);
+
+    if(!is_log_initialized(pmem)) {
+        init_log(pmem);
+    }
+
+    init_hash_table(pmem);
+    if(1) { // TODO: prüfen ob hash_table persistiert wurde
+        reconstruct_hash_table(pmem);
+    }
+    // init_cleaner(pmem);
+
+	if(pmem2_source_delete(&src)) {
+        pmem2_perror("pmem2_source_delete");
+        err_src_delete(pmem, cfg, src);
+        return 1;
+	}
+
+	if(pmem2_config_delete(&cfg)) {
+        pmem2_perror("pmem2_config_delete");
+        err_src_delete(pmem, cfg, src);
+        return 1;
+	}
+
+    return 0;
+}
+
+int delete_pmem(pmem_t *pmem) {
+    int ret = 0;
+    pmem->terminate_cleaner_threads = 1;
+
+    // for(int i=0; i<CLEANER_THREAD_COUNT; i++) {
+    //     pthread_join(pmem->cleaner_thread_refs[i], NULL);
+    // }
+
+    persist_hash_table(pmem);
+    destroy_hash_table(pmem);
+
+    if(pmem2_map_delete(&pmem->map)) {
+        pmem2_perror("pmem2_map_delete");
+        ret = 1;
+	}
+
+	if(close(pmem->fd)) {
+        perror("close");
+        ret = 1;
+	}
+
+    return ret;
+}
+
+uint64_t palloc(pmem_t *pmem, size_t size, void *data) {
+    if(size == 0) {
+        return 0;
+    }
+
+    log_entry_t *log_entry = malloc(sizeof(log_entry_t) + sizeof(uint8_t) * size);
+    if(!log_entry) {
+        perror("malloc");
+        return 0;
+    }
+
+    uint64_t id = gen_id(pmem);
+    log_entry->id = id;
+    log_entry->version = 1;
+    log_entry->length = size;
+    log_entry->to_delete = 0;
+    memcpy(log_entry->data, data, size);
+
+    pmo_t pmem_offset = append_to_log(pmem, log_entry);
+    add_to_hash_table(pmem, log_entry->id, pmem_offset);
+    free(log_entry);
+
+    return id;
+}
+
+void pfree(pmem_t *pmem, uint64_t id) {
+    pmo_t off = get_from_hash_table(pmem, id);
+    log_entry_t *log_entry = offset_to_pointer(pmem, off);
+    if(!log_entry) {
+        return;
+    }
+
+    // log_entry zum löschen markieren
+    log_entry->to_delete = 1;
+    pmem->persist(&log_entry->to_delete, sizeof(uint8_t));
+    
+    // used_space im Segment verringern
+    uint64_t segment_id = (off - sizeof(log_t)) / SEGMENT_SIZE;
+    segment_t *segment = (segment_t*)((uint8_t*)pmem->log + sizeof(log_t) + segment_id * SEGMENT_SIZE); 
+    segment->used_space -= log_entry->length + sizeof(log_entry_t);
+    pmem->persist(&segment->used_space, sizeof(size_t));
+
+    remove_from_hash_table(pmem, id);
+}
+
+void * get_address(pmem_t *pmem, uint64_t id) {
+    pmo_t off = get_from_hash_table(pmem, id);
+    log_entry_t *log_entry = offset_to_pointer(pmem, off);
+    if(!log_entry) {
+        return NULL;
+    }
+    // TODO: pointer validation
+    return log_entry->data;
+}
+
+int update_data(pmem_t *pmem, uint64_t id, void *data, size_t size) {
+    if(size == 0) {
+        return 1;
+    }
+
+    pmo_t off = get_from_hash_table(pmem, id);
+    log_entry_t *log_entry = offset_to_pointer(pmem, off);
+
+    log_entry_t *updated_log_entry = malloc(sizeof(log_entry_t) + sizeof(uint8_t) * size);
+    if(!log_entry) {
+        perror("malloc");
+        return 1;
+    }   
+
+    memcpy(updated_log_entry, log_entry, sizeof(log_entry_t));
+    updated_log_entry->length = size;
+    updated_log_entry->version++;
+    memcpy(updated_log_entry->data, data, size);
+
+    pmo_t offset = append_to_log(pmem, updated_log_entry);
+    add_to_hash_table(pmem, id, offset);
+
+    return 0;
+}
