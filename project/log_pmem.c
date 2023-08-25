@@ -6,6 +6,7 @@
 
 void err_config(pmem_t *pmem) {
     close(pmem->fd);
+    free(pmem->path_to_pmem);
 }
 
 void err_granularity(pmem_t *pmem, struct pmem2_config *cfg) {
@@ -29,6 +30,13 @@ int init_pmem(pmem_t *pmem, char *path) {
         perror("open");
         return 1;
     }
+
+    pmem->path_to_pmem = malloc(strlen(path) + 1);
+    if(!pmem->path_to_pmem) {
+        perror("malloc");
+        return 1;
+    }
+    strcpy(pmem->path_to_pmem, path);
 
     struct pmem2_config *cfg;
     if(pmem2_config_new(&cfg)) {
@@ -72,15 +80,29 @@ int init_pmem(pmem_t *pmem, char *path) {
     pmem->memcpy_fn = pmem2_get_memcpy_fn(pmem->map);
     pmem->log = pmem2_map_get_address(pmem->map);
 
+    pthread_mutex_init(&pmem->head_seg_mutex, NULL);
+    pthread_mutex_init(&pmem->free_segs_mutex, NULL);
+    pthread_mutex_init(&pmem->used_segs_mutex, NULL);
+    pthread_mutex_init(&pmem->cleaner_segs_mutex, NULL);
+    pthread_mutex_init(&pmem->ermergency_segs_mutex, NULL);
+    
     if(!is_log_initialized(pmem)) {
         init_log(pmem);
     }
 
     init_hash_table(pmem);
-    if(1) { // TODO: prüfen ob hash_table persistiert wurde
+    if(!pmem->log->regular_termination) {
+        append_all_cleaner_segments_to_free_segments(pmem);
         reconstruct_hash_table(pmem);
+    } else {
+        if(get_persisted_hash_table(pmem)) {
+            reconstruct_hash_table(pmem);
+        }
     }
-    // init_cleaner(pmem);
+    init_cleaner(pmem);
+
+    pmem->log->regular_termination = 0;
+    pmem->persist(&pmem->log->regular_termination, sizeof(uint8_t));
 
 	if(pmem2_source_delete(&src)) {
         pmem2_perror("pmem2_source_delete");
@@ -99,14 +121,20 @@ int init_pmem(pmem_t *pmem, char *path) {
 
 int delete_pmem(pmem_t *pmem) {
     int ret = 0;
-    pmem->terminate_cleaner_threads = 1;
-
-    // for(int i=0; i<CLEANER_THREAD_COUNT; i++) {
-    //     pthread_join(pmem->cleaner_thread_refs[i], NULL);
-    // }
-
+    // pmem->terminate_cleaner_threads = 1;
+    
+    terminate_cleaner(pmem);
     persist_hash_table(pmem);
     destroy_hash_table(pmem);
+
+    pmem->log->regular_termination = 1;
+    pmem->persist(&pmem->log->regular_termination, sizeof(uint8_t));
+
+    pthread_mutex_destroy(&pmem->head_seg_mutex);
+    pthread_mutex_destroy(&pmem->free_segs_mutex);
+    pthread_mutex_destroy(&pmem->used_segs_mutex);
+    pthread_mutex_destroy(&pmem->cleaner_segs_mutex);
+    pthread_mutex_destroy(&pmem->ermergency_segs_mutex);
 
     if(pmem2_map_delete(&pmem->map)) {
         pmem2_perror("pmem2_map_delete");
@@ -117,6 +145,8 @@ int delete_pmem(pmem_t *pmem) {
         perror("close");
         ret = 1;
 	}
+
+    free(pmem->path_to_pmem);
 
     return ret;
 }
@@ -140,6 +170,9 @@ uint64_t palloc(pmem_t *pmem, size_t size, void *data) {
     memcpy(log_entry->data, data, size);
 
     pmo_t pmem_offset = append_to_log(pmem, log_entry);
+    if(!pmem_offset) {
+        return 0;
+    }
     add_to_hash_table(pmem, log_entry->id, pmem_offset);
     free(log_entry);
 
@@ -172,7 +205,6 @@ void * get_address(pmem_t *pmem, uint64_t id) {
     if(!log_entry) {
         return NULL;
     }
-    // TODO: pointer validation
     return log_entry->data;
 }
 
@@ -196,6 +228,9 @@ int update_data(pmem_t *pmem, uint64_t id, void *data, size_t size) {
     memcpy(updated_log_entry->data, data, size);
 
     pmo_t offset = append_to_log(pmem, updated_log_entry);
+    if(!offset) {
+        return 1;
+    }
     add_to_hash_table(pmem, id, offset);
 
     return 0;

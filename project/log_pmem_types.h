@@ -5,6 +5,8 @@
 #include <stdlib.h>
 #include <inttypes.h>
 #include <fcntl.h>
+#include <sys/types.h>
+#include <sys/stat.h>
 #include <unistd.h>
 #include <string.h>
 #include <pthread.h>
@@ -16,6 +18,7 @@
 #define LOG_SIGNATURE "log is initialized"
 #define LOG_SIGNATURE_LEN sizeof(LOG_SIGNATURE)
 #define CLEANER_THREAD_COUNT 1
+#define EMERGENCY_CLEANER_SEGMENT_COUNT 1
 
 // persistent memory offset
 typedef uintptr_t pmo_t;
@@ -37,6 +40,7 @@ typedef struct segment {
 
 typedef struct log {
     uint8_t signature[LOG_SIGNATURE_LEN];
+    uint8_t regular_termination;
     pmo_t head_segment;
     pmo_t free_segments;
     pmo_t last_free_segment;
@@ -44,8 +48,12 @@ typedef struct log {
     pmo_t last_used_segment;
     pmo_t cleaner_segments;
     pmo_t last_cleaner_segment;
+    pmo_t emergency_cleaner_segments;
+    pmo_t last_emergency_cleaner_segment;
     uint64_t current_id;
     size_t head_position;
+    size_t used_segments_count;
+    size_t current_emergency_cleaner_segments_count;
 } log_t;
 
 typedef struct pmem {
@@ -58,6 +66,13 @@ typedef struct pmem {
     pthread_t cleaner_thread_refs[CLEANER_THREAD_COUNT];
     uint8_t terminate_cleaner_threads;
     GHashTable *hash_table;
+    char *path_to_pmem;
+
+    pthread_mutex_t head_seg_mutex;
+    pthread_mutex_t free_segs_mutex;
+    pthread_mutex_t used_segs_mutex;
+    pthread_mutex_t cleaner_segs_mutex;
+    pthread_mutex_t ermergency_segs_mutex;
 } pmem_t;
 
 void * offset_to_pointer(pmem_t *pmem, pmo_t offset);
