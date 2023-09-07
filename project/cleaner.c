@@ -3,7 +3,8 @@
 
 int init_cleaner(pmem_t *pmem) {
     // printf("init_cleaner\n");
-    // pmem->terminate_cleaner_threads = 0;
+    pmem->currently_cleaned_segments = g_hash_table_new(g_direct_hash, g_direct_equal);
+    
     for(int i=0; i<CLEANER_THREAD_COUNT; i++) {
         if(pthread_create(&pmem->cleaner_thread_refs[i], NULL, &clean, pmem)) {
             perror("pthread_create");
@@ -15,6 +16,7 @@ int init_cleaner(pmem_t *pmem) {
 }
 
 int terminate_cleaner(pmem_t *pmem) {
+    // printf("terminate_cleaner\n");
     for(int i=0; i<CLEANER_THREAD_COUNT; i++) {
         pthread_cancel(pmem->cleaner_thread_refs[i]);
     }
@@ -31,6 +33,8 @@ int terminate_cleaner(pmem_t *pmem) {
     }
 
     append_all_cleaner_segments_to_used_segments(pmem);
+
+    g_hash_table_destroy(pmem->currently_cleaned_segments);
 
     return 0;
 }
@@ -57,8 +61,9 @@ void * clean(void *param) {
         // alle Segmente durchgehen
         while(curr_seg) {
             pthread_testcancel();
-            if(to_clean(curr_seg)) {
-// printf("cleaning segment %ld\n", curr_seg->id);
+            if(to_clean(curr_seg) && test_and_set_curr_cleaned(pmem, curr_seg)) {
+                // printf("cleaning segment %ld\n", curr_seg->id);
+                pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
                 if(curr_seg->used_space != 0) {
                     int pos = 0;
                     // alle log_entries durchgehen
@@ -71,6 +76,7 @@ void * clean(void *param) {
                             break;
                         }
 
+                        pthread_mutex_lock(&pmem->update_move_mutex);
                         log_entry_t *log_entry_from_hash_table = offset_to_pointer(pmem, get_from_hash_table(pmem, log_entry->id));
 
                         // wenn log_entry nicht gelöscht werden soll, wird er in ein neues Segment kopiert
@@ -93,21 +99,25 @@ void * clean(void *param) {
                             cleaner_seg_pos += log_entry_size;
                             
                             add_to_hash_table(pmem, log_entry->id, offset);
-                            
-                            // wird nur benötigt, falls Programm abstürzt
-                            log_entry->to_delete = 1; 
-                            pmem->persist(log_entry, sizeof(log_entry_t));
                         }
 
+                        pthread_mutex_unlock(&pmem->update_move_mutex);
                         pos += log_entry_size;
                     }
                 }
 
                 uint64_t seg_id = curr_seg->id;
+                segment_t *cleaned = curr_seg;
+                pthread_mutex_lock(&pmem->used_segs_mutex);
                 curr_seg = offset_to_pointer(pmem, curr_seg->next_segment);
+                pthread_mutex_unlock(&pmem->used_segs_mutex);
                 append_cleaned_segment_to_free_segments(pmem, seg_id);
+                unset_curr_cleaned(pmem, cleaned);
+                pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL);
             } else {
+                pthread_mutex_lock(&pmem->used_segs_mutex);
                 curr_seg = offset_to_pointer(pmem, curr_seg->next_segment);
+                pthread_mutex_unlock(&pmem->used_segs_mutex);
             }
         }
     }
@@ -120,7 +130,22 @@ int wait_to_start_cleaning(pmem_t *pmem) {
 }
 
 int to_clean(segment_t *segment) {
-    return segment->used_space < SEGMENT_SIZE/2 ? 1 : 0;
+    return segment->used_space < SEGMENT_SIZE / 2;// ? 1 : 0;
+}
+
+int test_and_set_curr_cleaned(pmem_t *pmem, segment_t *segment) {
+    // printf("test_and_set_curr_cleaned\n");
+    pthread_mutex_lock(&pmem->curr_cleaned_mutex);
+    int ret = g_hash_table_contains(pmem->currently_cleaned_segments, GSIZE_TO_POINTER(segment->id));
+    if(!ret) {
+        g_hash_table_add(pmem->currently_cleaned_segments, GSIZE_TO_POINTER(segment->id));
+    }
+    pthread_mutex_unlock(&pmem->curr_cleaned_mutex);
+    return !ret;
+}
+
+void unset_curr_cleaned(pmem_t *pmem, segment_t *segment) {
+    g_hash_table_remove(pmem->currently_cleaned_segments, GSIZE_TO_POINTER(segment->id));
 }
 
 segment_t * get_new_cleaner_segment(pmem_t *pmem) {
@@ -221,6 +246,8 @@ void refill_emergency_cleaner_segment(pmem_t *pmem, segment_t *curr_seg) {
     pmem->persist(log, sizeof(log_t));
     pthread_mutex_unlock(&pmem->ermergency_segs_mutex);
 
+    // emergency_segment wird nicht aus cleaner_segments entfernt, muss von aufrufender Funktion gemacht werden
+
     return;
 }
 
@@ -228,11 +255,11 @@ void append_cleaner_segment_to_used_segments(pmem_t *pmem, uint64_t id) {
     // printf("append_cleaner_segment_to_used_segments\n");
     log_t *log = pmem->log;
 
+    pthread_mutex_lock(&pmem->cleaner_segs_mutex);
     segment_t *curr_seg = offset_to_pointer(pmem, log->cleaner_segments);
     segment_t *prev_seg = NULL;
 
     // richtiges Segment und Vorgänger finden
-    pthread_mutex_lock(&pmem->cleaner_segs_mutex);
     for(;curr_seg->id != id; curr_seg = offset_to_pointer(pmem, curr_seg->next_segment)) {
         prev_seg = curr_seg;
     }
@@ -279,11 +306,11 @@ void append_cleaned_segment_to_free_segments(pmem_t *pmem, uint64_t id) {
     // printf("append_cleaned_segment_to_free_segments %ld\n", id);
     log_t *log = pmem->log;
 
+    pthread_mutex_lock(&pmem->used_segs_mutex);
     segment_t *curr_seg = offset_to_pointer(pmem, log->used_segments);
     segment_t *prev_seg = NULL;
 
     // richtiges Segment und Vorgänger finden
-    pthread_mutex_lock(&pmem->used_segs_mutex);
     for(;curr_seg->id != id; curr_seg = offset_to_pointer(pmem, curr_seg->next_segment)) {
         prev_seg = curr_seg;
     }
@@ -336,11 +363,11 @@ void append_cleaner_segment_to_free_segments(pmem_t *pmem, uint64_t id) {
     // printf("append_cleaner_segment_to_free_segments %ld\n", id);
     log_t *log = pmem->log;
 
+    pthread_mutex_lock(&pmem->cleaner_segs_mutex);
     segment_t *curr_seg = offset_to_pointer(pmem, log->cleaner_segments);
     segment_t *prev_seg = NULL;
 
     // richtiges Segment und Vorgänger finden
-    pthread_mutex_lock(&pmem->cleaner_segs_mutex);
     for(;curr_seg->id != id; curr_seg = offset_to_pointer(pmem, curr_seg->next_segment)) {
         prev_seg = curr_seg;
     }

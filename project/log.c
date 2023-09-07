@@ -82,11 +82,12 @@ int init_log(pmem_t *pmem) {
 pmo_t append_to_log(pmem_t *pmem, log_entry_t *log_entry) {
     log_t *log = pmem->log;
     size_t log_entry_size = sizeof(log_entry_t) + sizeof(uint8_t) * log_entry->length;
-    segment_t* head_seg = offset_to_pointer(pmem, log->head_segment);
+    segment_t *head_seg = offset_to_pointer(pmem, log->head_segment);
     if(!head_seg) {
         if(append_head_to_used_segments_and_get_new_head_segment(pmem)) {
             return 0;
         }
+        head_seg = offset_to_pointer(pmem, log->head_segment);
     }
 
     // wenn im head_segment nicht mehr genug Platz für den neuen Eintrag ist
@@ -135,7 +136,7 @@ int append_head_to_used_segments_and_get_new_head_segment(pmem_t *pmem) {
 
     // neues Head Segment holen
     if(log->free_segments == 0) {
-        fprintf(stdout, "no memory space left\n");
+        fprintf(stderr, "no memory space left\n");
         log->head_segment = pointer_to_offset(pmem, NULL);
         pmem->persist(log, sizeof(log_t));
         return 1;
@@ -160,10 +161,9 @@ int append_head_to_used_segments_and_get_new_head_segment(pmem_t *pmem) {
     return 0;
 }
 
-// TODO: was besseres ausdenken, vielleicht uuid?
 uint64_t gen_id(pmem_t *pmem) {
     uint64_t id = pmem->log->current_id++;
-    if(hash_table_contains(pmem, id)) {
+    while(hash_table_contains(pmem, id)) {
         id = pmem->log->current_id++;
     }
     return id;

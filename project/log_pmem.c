@@ -74,17 +74,22 @@ int init_pmem(pmem_t *pmem, char *path) {
         return 1;
 	}
     
-    // TODO: Größe prüfen
     pmem->size = pmem2_map_get_size(pmem->map) - sizeof(log_t);
+    if(pmem->size < MIN_LOG_LENGTH) {
+        fprintf(stderr, "init_pmem: file size to small\n");
+        err_src_delete(pmem, cfg, src);
+        return 1;
+    }
     pmem->persist = pmem2_get_persist_fn(pmem->map);
     pmem->memcpy_fn = pmem2_get_memcpy_fn(pmem->map);
     pmem->log = pmem2_map_get_address(pmem->map);
 
-    pthread_mutex_init(&pmem->head_seg_mutex, NULL);
+    pthread_mutex_init(&pmem->update_move_mutex, NULL);
     pthread_mutex_init(&pmem->free_segs_mutex, NULL);
     pthread_mutex_init(&pmem->used_segs_mutex, NULL);
     pthread_mutex_init(&pmem->cleaner_segs_mutex, NULL);
     pthread_mutex_init(&pmem->ermergency_segs_mutex, NULL);
+    pthread_mutex_init(&pmem->curr_cleaned_mutex, NULL);
     
     if(!is_log_initialized(pmem)) {
         init_log(pmem);
@@ -121,7 +126,6 @@ int init_pmem(pmem_t *pmem, char *path) {
 
 int delete_pmem(pmem_t *pmem) {
     int ret = 0;
-    // pmem->terminate_cleaner_threads = 1;
     
     terminate_cleaner(pmem);
     persist_hash_table(pmem);
@@ -130,11 +134,12 @@ int delete_pmem(pmem_t *pmem) {
     pmem->log->regular_termination = 1;
     pmem->persist(&pmem->log->regular_termination, sizeof(uint8_t));
 
-    pthread_mutex_destroy(&pmem->head_seg_mutex);
+    pthread_mutex_destroy(&pmem->update_move_mutex);
     pthread_mutex_destroy(&pmem->free_segs_mutex);
     pthread_mutex_destroy(&pmem->used_segs_mutex);
     pthread_mutex_destroy(&pmem->cleaner_segs_mutex);
     pthread_mutex_destroy(&pmem->ermergency_segs_mutex);
+    pthread_mutex_destroy(&pmem->curr_cleaned_mutex);
 
     if(pmem2_map_delete(&pmem->map)) {
         pmem2_perror("pmem2_map_delete");
@@ -152,6 +157,7 @@ int delete_pmem(pmem_t *pmem) {
 }
 
 uint64_t palloc(pmem_t *pmem, size_t size, void *data) {
+    // printf("palloc\n");
     if(size == 0) {
         return 0;
     }
@@ -179,7 +185,41 @@ uint64_t palloc(pmem_t *pmem, size_t size, void *data) {
     return id;
 }
 
+uint64_t palloc_with_id(pmem_t *pmem, uint64_t id, size_t size, void *data) {
+    // printf("palloc_with_id\n");
+    if(size == 0) {
+        return 1;
+    }
+
+    if(hash_table_contains(pmem, id)) {
+        return update_data(pmem, id, data, size);
+    }
+
+    log_entry_t *log_entry = malloc(sizeof(log_entry_t) + sizeof(uint8_t) * size);
+    if(!log_entry) {
+        perror("malloc");
+        return 1;
+    }
+
+    log_entry->id = id;
+    log_entry->version = 1;
+    log_entry->length = size;
+    log_entry->to_delete = 0;
+    memcpy(log_entry->data, data, size);
+
+    pmo_t pmem_offset = append_to_log(pmem, log_entry);
+    if(!pmem_offset) {
+        return 1;
+    }
+    add_to_hash_table(pmem, log_entry->id, pmem_offset);
+    free(log_entry);
+
+    return 0;
+}
+
 void pfree(pmem_t *pmem, uint64_t id) {
+    // printf("pfree\n");
+    pthread_mutex_lock(&pmem->update_move_mutex);
     pmo_t off = get_from_hash_table(pmem, id);
     log_entry_t *log_entry = offset_to_pointer(pmem, off);
     if(!log_entry) {
@@ -197,6 +237,7 @@ void pfree(pmem_t *pmem, uint64_t id) {
     pmem->persist(&segment->used_space, sizeof(size_t));
 
     remove_from_hash_table(pmem, id);
+    pthread_mutex_unlock(&pmem->update_move_mutex);
 }
 
 void * get_address(pmem_t *pmem, uint64_t id) {
@@ -209,18 +250,24 @@ void * get_address(pmem_t *pmem, uint64_t id) {
 }
 
 int update_data(pmem_t *pmem, uint64_t id, void *data, size_t size) {
+    // printf("update_data\n");
     if(size == 0) {
         return 1;
     }
 
-    pmo_t off = get_from_hash_table(pmem, id);
-    log_entry_t *log_entry = offset_to_pointer(pmem, off);
-
     log_entry_t *updated_log_entry = malloc(sizeof(log_entry_t) + sizeof(uint8_t) * size);
-    if(!log_entry) {
+    if(!updated_log_entry) {
         perror("malloc");
         return 1;
     }   
+
+    pthread_mutex_lock(&pmem->update_move_mutex);
+    pmo_t off = get_from_hash_table(pmem, id);
+    log_entry_t *log_entry = offset_to_pointer(pmem, off);
+    if(!log_entry) {
+        fprintf(stderr, "id does not exist in pmem");
+        return 1;
+    }
 
     memcpy(updated_log_entry, log_entry, sizeof(log_entry_t));
     updated_log_entry->length = size;
@@ -229,9 +276,11 @@ int update_data(pmem_t *pmem, uint64_t id, void *data, size_t size) {
 
     pmo_t offset = append_to_log(pmem, updated_log_entry);
     if(!offset) {
+        pthread_mutex_unlock(&pmem->update_move_mutex);
         return 1;
     }
     add_to_hash_table(pmem, id, offset);
+    pthread_mutex_unlock(&pmem->update_move_mutex);
 
     return 0;
 }

@@ -6,6 +6,8 @@ int delete_pmem(pmem_t *pmem);
 
 uint64_t palloc(pmem_t *pmem, size_t size, void *data);
 
+uint64_t palloc_with_id(pmem_t *pmem, uint64_t id, size_t size, void *data);
+
 void pfree(pmem_t *pmem, uint64_t id);
 
 void * get_address(pmem_t *pmem, uint64_t id);

@@ -14,10 +14,10 @@
 #include <glib.h>
 
 #define SEGMENT_SIZE (1U << 12)  // 4 KiB
-#define LOG_LENGTH (1U << 23) // 8 MiB
+#define MIN_LOG_LENGTH 5 * SEGMENT_SIZE
 #define LOG_SIGNATURE "log is initialized"
 #define LOG_SIGNATURE_LEN sizeof(LOG_SIGNATURE)
-#define CLEANER_THREAD_COUNT 1
+#define CLEANER_THREAD_COUNT 2
 #define EMERGENCY_CLEANER_SEGMENT_COUNT 1
 
 // persistent memory offset
@@ -64,15 +64,16 @@ typedef struct pmem {
     pmem2_memcpy_fn memcpy_fn;
     size_t size;
     pthread_t cleaner_thread_refs[CLEANER_THREAD_COUNT];
-    uint8_t terminate_cleaner_threads;
     GHashTable *hash_table;
     char *path_to_pmem;
+    GHashTable *currently_cleaned_segments;
 
-    pthread_mutex_t head_seg_mutex;
+    pthread_mutex_t update_move_mutex;
     pthread_mutex_t free_segs_mutex;
     pthread_mutex_t used_segs_mutex;
     pthread_mutex_t cleaner_segs_mutex;
     pthread_mutex_t ermergency_segs_mutex;
+    pthread_mutex_t curr_cleaned_mutex;
 } pmem_t;
 
 void * offset_to_pointer(pmem_t *pmem, pmo_t offset);

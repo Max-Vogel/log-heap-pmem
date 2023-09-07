@@ -13,7 +13,7 @@ pmo_t get_from_hash_table(pmem_t *pmem, uint64_t id) {
 }
 
 void remove_from_hash_table(pmem_t *pmem, uint64_t id) {
-    g_hash_table_remove(pmem->hash_table, (gpointer)&id);
+    g_hash_table_remove(pmem->hash_table, GSIZE_TO_POINTER(id));
 }
 
 void destroy_hash_table(pmem_t *pmem) {
@@ -133,6 +133,10 @@ int get_persisted_hash_table(pmem_t *pmem) {
 
 int persist_hash_table(pmem_t *pmem) {
     // printf("persist_hash_table\n");
+    if(!g_hash_table_size(pmem->hash_table)) {
+        return 0;
+    }
+
     hash_pmem_t *hpmem = malloc(sizeof(hash_pmem_t));
     if(!hpmem) {
         fprintf(stderr, "failed to persist hash table\n");

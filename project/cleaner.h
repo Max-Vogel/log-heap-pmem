@@ -10,6 +10,10 @@ int wait_to_start_cleaning(pmem_t *pmem);
 
 int to_clean(segment_t *segment);
 
+int test_and_set_curr_cleaned(pmem_t *pmem, segment_t *segment);
+
+void unset_curr_cleaned(pmem_t *pmem, segment_t *segment);
+
 segment_t * get_new_cleaner_segment(pmem_t *pmem);
 
 segment_t * get_emergency_cleaner_segment(pmem_t *pmem);
