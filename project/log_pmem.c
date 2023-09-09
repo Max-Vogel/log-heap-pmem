@@ -177,6 +177,7 @@ uint64_t palloc(pmem_t *pmem, size_t size, void *data) {
 
     pmo_t pmem_offset = append_to_log(pmem, log_entry);
     if(!pmem_offset) {
+        free(log_entry);
         return 0;
     }
     add_to_hash_table(pmem, log_entry->id, pmem_offset);
@@ -209,6 +210,7 @@ uint64_t palloc_with_id(pmem_t *pmem, uint64_t id, size_t size, void *data) {
 
     pmo_t pmem_offset = append_to_log(pmem, log_entry);
     if(!pmem_offset) {
+        free(log_entry);
         return 1;
     }
     add_to_hash_table(pmem, log_entry->id, pmem_offset);
@@ -266,8 +268,15 @@ int update_data(pmem_t *pmem, uint64_t id, void *data, size_t size) {
     log_entry_t *log_entry = offset_to_pointer(pmem, off);
     if(!log_entry) {
         fprintf(stderr, "id does not exist in pmem");
+        free(updated_log_entry);
         return 1;
     }
+
+    // used_space im Segment verringern
+    uint64_t segment_id = (off - sizeof(log_t)) / SEGMENT_SIZE;
+    segment_t *segment = (segment_t*)((uint8_t*)pmem->log + sizeof(log_t) + segment_id * SEGMENT_SIZE); 
+    segment->used_space -= log_entry->length + sizeof(log_entry_t);
+    pmem->persist(&segment->used_space, sizeof(size_t));
 
     memcpy(updated_log_entry, log_entry, sizeof(log_entry_t));
     updated_log_entry->length = size;
@@ -277,10 +286,12 @@ int update_data(pmem_t *pmem, uint64_t id, void *data, size_t size) {
     pmo_t offset = append_to_log(pmem, updated_log_entry);
     if(!offset) {
         pthread_mutex_unlock(&pmem->update_move_mutex);
+        free(updated_log_entry);
         return 1;
     }
     add_to_hash_table(pmem, id, offset);
     pthread_mutex_unlock(&pmem->update_move_mutex);
+    free(updated_log_entry);
 
     return 0;
 }

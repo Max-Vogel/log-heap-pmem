@@ -69,6 +69,7 @@ static void setup(pmem_t *pmem, gconstpointer user_data) {
 
     if(ftruncate(fd, (1U << 10) * 100)) { // 100 KiB
         perror("ftruncate");
+        close(fd);
         return;
     }
 

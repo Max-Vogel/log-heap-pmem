@@ -209,6 +209,8 @@ int init_hash_pmem(pmem_t *pmem, hash_pmem_t *hpmem) {
         size_t file_size = sizeof(hash_meta_t) + sizeof(kvp_t) * hash_table_size;
         if(ftruncate(hpmem->fd, file_size)) {
             perror("ftruncate");
+            free(path);
+            close(hpmem->fd);
             return 1;
         }
     }

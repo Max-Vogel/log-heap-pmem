@@ -25,6 +25,7 @@ static void setup(pmem_t *pmem, gconstpointer user_data) {
 
     if(ftruncate(fd, size)) {
         perror("ftruncate");
+        close(fd);
         return;
     }
 
