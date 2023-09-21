@@ -4,6 +4,11 @@
   [![Download](https://img.shields.io/static/v1?label=&message=pdf&color=EE3F24&style=for-the-badge&logo=adobe-acrobat-reader&logoColor=FFFFFF)](/../-/jobs/artifacts/master/file/document/thesis.pdf?job=latex)
 </div>
 
+# Thesis PDF
+
+Weil die Pipeline fehlschlägt, befindet sich die fertige Thesis als PDF im `document` Verzeichnis.
+
+
 # :notebook: &nbsp; Aufgabenbeschreibung
 
 - Implementierung eines Log strukturierten persistenten Speichers
