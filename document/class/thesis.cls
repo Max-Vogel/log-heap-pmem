@@ -269,7 +269,7 @@
   }%
   {}
   
-  \ifthenelse{\equal{\@listofalgorithmsenabled}{true}}
+  \ifthenelse{\equal{\@listofalgorithmsenabled}{false}}
   {%
     \listofalgorithms
     \cleardoublepage
