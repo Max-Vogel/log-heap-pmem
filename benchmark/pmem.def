@@ -1,0 +1,27 @@
+Bootstrap: docker
+From: ubuntu:latest
+
+%post
+    apt-get update -y
+    apt-get install wget -y
+    apt-get install git -y
+    apt-get install pkg-config -y
+    apt-get install nano -y
+    apt-get -y install libpmem1 libpmemlog1 libpmemobj1 libpmempool1 librpmem1 libpmem2
+    apt-get -y install libpmem-dev librpmem-dev libpmemlog-dev libpmemobj-dev libpmempool-dev libpmem2-dev
+    apt-get -y install build-essential
+    apt-get install python3 -y
+    apt-get install python3-pip -y
+    pip3 install --user meson
+    apt-get install ninja-build -y
+    export PATH=~/.local/bin:$PATH
+    wget https://download.gnome.org/sources/glib/2.77/glib-2.77.1.tar.xz
+    tar xf glib-*.tar.xz
+    cd glib-*
+    meson setup _build
+    meson compile -C _build
+    meson install -C _build
+
+
+%environment
+   export PATH=~/.local/bin:$PATH

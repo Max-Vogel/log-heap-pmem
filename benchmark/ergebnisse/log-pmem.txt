@@ -1,0 +1,165 @@
+[Benchmark] log-pmem, #of_threads:  1 , workload: workloada.spec
+# Loading records:	1000000
+# Transaction throughput (KTPS)
+storeds	../../workloads/workloada.spec	1	492.258	2.03145
+# Loading records:	1000000
+# Transaction throughput (KTPS)
+storeds	../../workloads/workloada.spec	1	496.175	2.01542
+# Loading records:	1000000
+# Transaction throughput (KTPS)
+storeds	../../workloads/workloada.spec	1	492.166	2.03184
+# Loading records:	1000000
+# Transaction throughput (KTPS)
+storeds	../../workloads/workloada.spec	1	489.049	2.04479
+# Loading records:	1000000
+# Transaction throughput (KTPS)
+storeds	../../workloads/workloada.spec	1	496.726	2.01318
+# Loading records:	1000000
+# Transaction throughput (KTPS)
+storeds	../../workloads/workloada.spec	1	499.975	2.0001
+# Loading records:	1000000
+# Transaction throughput (KTPS)
+storeds	../../workloads/workloada.spec	1	493.262	2.02732
+# Loading records:	1000000
+# Transaction throughput (KTPS)
+storeds	../../workloads/workloada.spec	1	498.686	2.00527
+# Loading records:	1000000
+# Transaction throughput (KTPS)
+storeds	../../workloads/workloada.spec	1	497.33	2.01074
+# Loading records:	1000000
+# Transaction throughput (KTPS)
+storeds	../../workloads/workloada.spec	1	497.252	2.01105
+*****************<>*****************
+~~~~~~~~~~~~~~~~~~~~~~~~~<>~~~~~~~~~~~~~~~~~~~~~~~~~
+[Benchmark] log-pmem, #of_threads:  1 , workload: workloadb.spec
+# Loading records:	1000000
+# Transaction throughput (KTPS)
+storeds	../../workloads/workloadb.spec	1	776.372	1.28804
+# Loading records:	1000000
+# Transaction throughput (KTPS)
+storeds	../../workloads/workloadb.spec	1	770.664	1.29758
+# Loading records:	1000000
+# Transaction throughput (KTPS)
+storeds	../../workloads/workloadb.spec	1	761.481	1.31323
+# Loading records:	1000000
+# Transaction throughput (KTPS)
+storeds	../../workloads/workloadb.spec	1	764.025	1.30886
+# Loading records:	1000000
+# Transaction throughput (KTPS)
+storeds	../../workloads/workloadb.spec	1	757.754	1.31969
+# Loading records:	1000000
+# Transaction throughput (KTPS)
+storeds	../../workloads/workloadb.spec	1	776.264	1.28822
+# Loading records:	1000000
+# Transaction throughput (KTPS)
+storeds	../../workloads/workloadb.spec	1	764.815	1.30751
+# Loading records:	1000000
+# Transaction throughput (KTPS)
+storeds	../../workloads/workloadb.spec	1	772.187	1.29502
+# Loading records:	1000000
+# Transaction throughput (KTPS)
+storeds	../../workloads/workloadb.spec	1	769.249	1.29997
+# Loading records:	1000000
+# Transaction throughput (KTPS)
+storeds	../../workloads/workloadb.spec	1	758.497	1.3184
+*****************<>*****************
+~~~~~~~~~~~~~~~~~~~~~~~~~<>~~~~~~~~~~~~~~~~~~~~~~~~~
+[Benchmark] log-pmem, #of_threads:  1 , workload: workloadc.spec
+# Loading records:	1000000
+# Transaction throughput (KTPS)
+storeds	../../workloads/workloadc.spec	1	1009.7	0.990396
+# Loading records:	1000000
+# Transaction throughput (KTPS)
+storeds	../../workloads/workloadc.spec	1	1004.78	0.995239
+# Loading records:	1000000
+# Transaction throughput (KTPS)
+storeds	../../workloads/workloadc.spec	1	988.268	1.01187
+# Loading records:	1000000
+# Transaction throughput (KTPS)
+storeds	../../workloads/workloadc.spec	1	1004.41	0.995605
+# Loading records:	1000000
+# Transaction throughput (KTPS)
+storeds	../../workloads/workloadc.spec	1	991.471	1.0086
+# Loading records:	1000000
+# Transaction throughput (KTPS)
+storeds	../../workloads/workloadc.spec	1	989.985	1.01012
+# Loading records:	1000000
+# Transaction throughput (KTPS)
+storeds	../../workloads/workloadc.spec	1	998.334	1.00167
+# Loading records:	1000000
+# Transaction throughput (KTPS)
+storeds	../../workloads/workloadc.spec	1	993.276	1.00677
+# Loading records:	1000000
+# Transaction throughput (KTPS)
+storeds	../../workloads/workloadc.spec	1	991.703	1.00837
+# Loading records:	1000000
+# Transaction throughput (KTPS)
+storeds	../../workloads/workloadc.spec	1	1001.33	0.998668
+*****************<>*****************
+~~~~~~~~~~~~~~~~~~~~~~~~~<>~~~~~~~~~~~~~~~~~~~~~~~~~
+[Benchmark] log-pmem, #of_threads:  1 , workload: workloadd.spec
+# Loading records:	1000000
+# Transaction throughput (KTPS)
+storeds	../../workloads/workloadd.spec	1	1407.94	0.710258
+# Loading records:	1000000
+# Transaction throughput (KTPS)
+storeds	../../workloads/workloadd.spec	1	1408.35	0.710051
+# Loading records:	1000000
+# Transaction throughput (KTPS)
+storeds	../../workloads/workloadd.spec	1	1413.59	0.707416
+# Loading records:	1000000
+# Transaction throughput (KTPS)
+storeds	../../workloads/workloadd.spec	1	1426.17	0.701177
+# Loading records:	1000000
+# Transaction throughput (KTPS)
+storeds	../../workloads/workloadd.spec	1	1410.01	0.709216
+# Loading records:	1000000
+# Transaction throughput (KTPS)
+storeds	../../workloads/workloadd.spec	1	1406.42	0.711023
+# Loading records:	1000000
+# Transaction throughput (KTPS)
+storeds	../../workloads/workloadd.spec	1	1416.32	0.706056
+# Loading records:	1000000
+# Transaction throughput (KTPS)
+storeds	../../workloads/workloadd.spec	1	1394.23	0.717241
+# Loading records:	1000000
+# Transaction throughput (KTPS)
+storeds	../../workloads/workloadd.spec	1	1417.85	0.705294
+# Loading records:	1000000
+# Transaction throughput (KTPS)
+storeds	../../workloads/workloadd.spec	1	1412.93	0.707751
+*****************<>*****************
+~~~~~~~~~~~~~~~~~~~~~~~~~<>~~~~~~~~~~~~~~~~~~~~~~~~~
+[Benchmark] log-pmem, #of_threads:  1 , workload: workloade.spec
+# Loading records:	1000000
+# Transaction throughput (KTPS)
+storeds	../../workloads/workloade.spec	1	3053.18	0.327527
+# Loading records:	1000000
+# Transaction throughput (KTPS)
+storeds	../../workloads/workloade.spec	1	3069.18	0.32582
+# Loading records:	1000000
+# Transaction throughput (KTPS)
+storeds	../../workloads/workloade.spec	1	3066.87	0.326066
+# Loading records:	1000000
+# Transaction throughput (KTPS)
+storeds	../../workloads/workloade.spec	1	3030.69	0.329958
+# Loading records:	1000000
+# Transaction throughput (KTPS)
+storeds	../../workloads/workloade.spec	1	3059.63	0.326836
+# Loading records:	1000000
+# Transaction throughput (KTPS)
+storeds	../../workloads/workloade.spec	1	3061.17	0.326672
+# Loading records:	1000000
+# Transaction throughput (KTPS)
+storeds	../../workloads/workloade.spec	1	3060.51	0.326743
+# Loading records:	1000000
+# Transaction throughput (KTPS)
+storeds	../../workloads/workloade.spec	1	2999.81	0.333355
+# Loading records:	1000000
+# Transaction throughput (KTPS)
+storeds	../../workloads/workloade.spec	1	3065.34	0.326228
+# Loading records:	1000000
+# Transaction throughput (KTPS)
+storeds	../../workloads/workloade.spec	1	3069.92	0.325741
+*****************<>*****************
+~~~~~~~~~~~~~~~~~~~~~~~~~<>~~~~~~~~~~~~~~~~~~~~~~~~~

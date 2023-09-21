@@ -163,8 +163,46 @@ int append_head_to_used_segments_and_get_new_head_segment(pmem_t *pmem) {
 
 uint64_t gen_id(pmem_t *pmem) {
     uint64_t id = pmem->log->current_id++;
-    while(hash_table_contains(pmem, id)) {
+    if(id == 0) {
         id = pmem->log->current_id++;
     }
+    while(hash_table_contains(pmem, id)) {
+        id = pmem->log->current_id++;
+        if(id == 0) {
+            id = pmem->log->current_id++;
+        }
+    }
     return id;
+}
+
+void check_consistency(pmem_t *pmem) {
+    size_t consistent_total_seg_count = (pmem->size - sizeof(log_t)) / SEGMENT_SIZE;
+    size_t actual_seg_count = 0;
+
+    segment_t *curr_seg = offset_to_pointer(pmem, pmem->log->head_segment);
+    for(;curr_seg; curr_seg = offset_to_pointer(pmem, curr_seg->next_segment)) {
+        actual_seg_count++;
+    }
+
+    curr_seg = offset_to_pointer(pmem, pmem->log->free_segments);
+    for(;curr_seg; curr_seg = offset_to_pointer(pmem, curr_seg->next_segment)) {
+        actual_seg_count++;
+    }
+
+    curr_seg = offset_to_pointer(pmem, pmem->log->used_segments);
+    for(;curr_seg; curr_seg = offset_to_pointer(pmem, curr_seg->next_segment)) {
+        actual_seg_count++;
+    }
+
+    curr_seg = offset_to_pointer(pmem, pmem->log->cleaner_segments);
+    for(;curr_seg; curr_seg = offset_to_pointer(pmem, curr_seg->next_segment)) {
+        actual_seg_count++;
+    }
+
+    curr_seg = offset_to_pointer(pmem, pmem->log->emergency_cleaner_segments);
+    for(;curr_seg; curr_seg = offset_to_pointer(pmem, curr_seg->next_segment)) {
+        actual_seg_count++;
+    }
+
+    pmem->consistent = actual_seg_count == consistent_total_seg_count;
 }

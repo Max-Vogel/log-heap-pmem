@@ -1,5 +1,5 @@
 CC=g++
-CFLAGS=-std=c++11 -g -Wall -pthread -I./ -O2 `pkg-config --cflags glib-2.0` -L/home/max/ba-mavog112/project/
+CFLAGS=-std=c++11 -g -Wall -pthread -I./ -O2 `pkg-config --cflags glib-2.0` -L../../project/
 LDFLAGS= -llog_pmem -lpthread -lpmemobj -lpmem -lpmem2 `pkg-config --libs glib-2.0` #-lvmem -lmemkind
 SUBDIRS=core db storeds
 SUBSRCS=$(wildcard core/*.cc) $(wildcard db/*.cc) $(wildcard storeds/*.cc)

@@ -1,6 +1,12 @@
 #include "log_pmem_types.h"
 
-int init_cleaner(pmem_t *pmem);
+typedef struct cleaner_info {
+    pmem_t *pmem;
+    pmo_t segment;
+    uint8_t regular_termination;
+} cleaner_info_t;
+
+int init_cleaner(pmem_t *pmem, uint8_t regular_termination);
 
 int terminate_cleaner(pmem_t *pmem);
 

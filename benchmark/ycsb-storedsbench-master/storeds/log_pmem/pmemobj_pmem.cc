@@ -68,6 +68,11 @@ namespace ycsbc {
 
         PMEMoid root = pmemobj_root(pop, sizeof(root_t));
         rootp = (root_t*)pmemobj_direct(root);
+
+        PMEMoid new_data;
+        pmemobj_alloc(pop, &new_data, sizeof(data_t), 0, NULL, NULL);
+        rootp->data = new_data;
+        pmemobj_persist(pop, rootp, sizeof(root_t));
         
         return 0;
     }
@@ -93,12 +98,14 @@ namespace ycsbc {
         pmemobj_alloc(pop, &new_data, sizeof(data_t), 0, NULL, NULL);
         data_t *new_data_ptr = (data_t*) pmemobj_direct(new_data);
         pmemobj_memcpy_persist(pop, new_data_ptr->data, (char *) value, strlen((char *) value) + 1);
+        pmemobj_free(&rootp->data);
         rootp->data = new_data;
         pmemobj_persist(pop, rootp, sizeof(root_t));
         return 0;
     }
 
     void PmemobjPmem::destroy() {
+        pmemobj_free(&rootp->data);
         pmemobj_close(pop);
         return;
     }

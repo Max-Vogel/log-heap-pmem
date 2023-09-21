@@ -1,5 +1,5 @@
 CC = gcc
-CFLAGS = -Wall `pkg-config --cflags glib-2.0`
+CFLAGS = -std=gnu17 -Wall `pkg-config --cflags glib-2.0`
 LIBS = -lpmem2 -lpthread `pkg-config --libs glib-2.0`
 
 SOURCE = main.c

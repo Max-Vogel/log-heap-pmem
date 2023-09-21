@@ -95,16 +95,20 @@ int init_pmem(pmem_t *pmem, char *path) {
         init_log(pmem);
     }
 
+    check_consistency(pmem);
     init_hash_table(pmem);
     if(!pmem->log->regular_termination) {
-        append_all_cleaner_segments_to_free_segments(pmem);
+        // append_all_cleaner_segments_to_free_segments(pmem);
         reconstruct_hash_table(pmem);
     } else {
         if(get_persisted_hash_table(pmem)) {
             reconstruct_hash_table(pmem);
         }
     }
-    init_cleaner(pmem);
+
+    if(pmem->consistent) {
+        init_cleaner(pmem, pmem->log->regular_termination);
+    }
 
     pmem->log->regular_termination = 0;
     pmem->persist(&pmem->log->regular_termination, sizeof(uint8_t));
@@ -127,7 +131,9 @@ int init_pmem(pmem_t *pmem, char *path) {
 int delete_pmem(pmem_t *pmem) {
     int ret = 0;
     
-    terminate_cleaner(pmem);
+    if(pmem->consistent) {
+        terminate_cleaner(pmem);
+    }
     persist_hash_table(pmem);
     destroy_hash_table(pmem);
 
@@ -158,6 +164,11 @@ int delete_pmem(pmem_t *pmem) {
 
 uint64_t palloc(pmem_t *pmem, size_t size, void *data) {
     // printf("palloc\n");
+    if(!pmem->consistent) {
+        fprintf(stderr, "memory is inconsistent: data can only be read safely, not written\n");
+        return 0;
+    }
+    
     if(size == 0) {
         return 0;
     }
@@ -188,6 +199,11 @@ uint64_t palloc(pmem_t *pmem, size_t size, void *data) {
 
 uint64_t palloc_with_id(pmem_t *pmem, uint64_t id, size_t size, void *data) {
     // printf("palloc_with_id\n");
+    if(!pmem->consistent) {
+        fprintf(stderr, "memory is inconsistent: data can only be read safely, not written\n");
+        return 1;
+    }
+    
     if(size == 0) {
         return 1;
     }
@@ -225,6 +241,7 @@ void pfree(pmem_t *pmem, uint64_t id) {
     pmo_t off = get_from_hash_table(pmem, id);
     log_entry_t *log_entry = offset_to_pointer(pmem, off);
     if(!log_entry) {
+        pthread_mutex_unlock(&pmem->update_move_mutex);
         return;
     }
 
@@ -253,6 +270,11 @@ void * get_address(pmem_t *pmem, uint64_t id) {
 
 int update_data(pmem_t *pmem, uint64_t id, void *data, size_t size) {
     // printf("update_data\n");
+    if(!pmem->consistent) {
+        fprintf(stderr, "memory is inconsistent: data can only be read safely, not written\n");
+        return 1;
+    }
+    
     if(size == 0) {
         return 1;
     }
@@ -267,8 +289,9 @@ int update_data(pmem_t *pmem, uint64_t id, void *data, size_t size) {
     pmo_t off = get_from_hash_table(pmem, id);
     log_entry_t *log_entry = offset_to_pointer(pmem, off);
     if(!log_entry) {
-        fprintf(stderr, "id does not exist in pmem");
+        fprintf(stderr, "id does not exist in pmem\n");
         free(updated_log_entry);
+        pthread_mutex_unlock(&pmem->update_move_mutex);
         return 1;
     }
 

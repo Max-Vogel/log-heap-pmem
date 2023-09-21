@@ -67,6 +67,7 @@ typedef struct pmem {
     GHashTable *hash_table;
     char *path_to_pmem;
     GHashTable *currently_cleaned_segments;
+    int consistent;
 
     pthread_mutex_t update_move_mutex;
     pthread_mutex_t free_segs_mutex;

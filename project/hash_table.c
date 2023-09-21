@@ -60,31 +60,59 @@ void reconstruct_hash_table(pmem_t *pmem) {
         }
     }
 
+    // head_segment durchgehen
     segment_t *head_seg = offset_to_pointer(pmem, pmem->log->head_segment);
-    if(!head_seg) {
-        return;
-    }
-    pos = 0;
-    // alle log_entries in head_segment durchgehen
-    while(pos < pmem->log->head_position) {
-        log_entry_t *log_entry = (log_entry_t*)((uint8_t*)head_seg->log_entries + sizeof(uint8_t) * pos);
-        size_t log_entry_size = sizeof(log_entry_t) + sizeof(uint8_t) * log_entry->length;
+    if(head_seg) {
+        pos = 0;
+        // alle log_entries in head_segment durchgehen
+        while(pos < pmem->log->head_position) {
+            log_entry_t *log_entry = (log_entry_t*)((uint8_t*)head_seg->log_entries + sizeof(uint8_t) * pos);
+            size_t log_entry_size = sizeof(log_entry_t) + sizeof(uint8_t) * log_entry->length;
 
-        // wenn log_entry nicht gelöscht werden soll, wird es wieder in hash_table aufgenommen
-        if(!log_entry->to_delete) {
-            // wenn schon ein Objekt mit dieser ID in hash_table ist
-            if(hash_table_contains(pmem, log_entry->id)) {
-                log_entry_t *log_entry_from_hash_table = offset_to_pointer(pmem, get_from_hash_table(pmem, log_entry->id));
-                // wenn die Version von log_entry neuer ist, als die des aktuellen Eintrags aus hash_table
-                if(log_entry->version > log_entry_from_hash_table->version) {
+            // wenn log_entry nicht gelöscht werden soll, wird es wieder in hash_table aufgenommen
+            if(!log_entry->to_delete) {
+                // wenn schon ein Objekt mit dieser ID in hash_table ist
+                if(hash_table_contains(pmem, log_entry->id)) {
+                    log_entry_t *log_entry_from_hash_table = offset_to_pointer(pmem, get_from_hash_table(pmem, log_entry->id));
+                    // wenn die Version von log_entry neuer ist, als die des aktuellen Eintrags aus hash_table
+                    if(log_entry->version > log_entry_from_hash_table->version) {
+                        add_to_hash_table(pmem, log_entry->id, pointer_to_offset(pmem, log_entry));
+                    }
+                } else {
+                    add_to_hash_table(pmem, log_entry->id, pointer_to_offset(pmem, log_entry));
+                }
+            }
+            
+            pos += log_entry_size;
+        }        
+    }
+
+    // cleaner_segments durchgehen
+    segment_t *cleaner_seg = offset_to_pointer(pmem, pmem->log->cleaner_segments);
+    for(;cleaner_seg; offset_to_pointer(pmem, cleaner_seg->next_segment)) {
+        pos = 0;
+        int freed = 0;
+        while(pos < cleaner_seg->used_space + freed) {
+            log_entry_t *log_entry = (log_entry_t*)((uint8_t*)cleaner_seg->log_entries + sizeof(uint8_t) * pos);
+            size_t log_entry_size = sizeof(log_entry_t) + sizeof(uint8_t) * log_entry->length;
+
+            // wenn log_entry nicht gelöscht werden soll, wird es wieder in hash_table aufgenommen
+            if(!log_entry->to_delete) {
+                // wenn schon ein Objekt mit dieser ID in hash_table ist
+                if(hash_table_contains(pmem, log_entry->id)) {
+                    log_entry_t *log_entry_from_hash_table = offset_to_pointer(pmem, get_from_hash_table(pmem, log_entry->id));
+                    // wenn die Version von log_entry neuer ist, als die des aktuellen Eintrags aus hash_table
+                    if(log_entry->version > log_entry_from_hash_table->version) {
+                        add_to_hash_table(pmem, log_entry->id, pointer_to_offset(pmem, log_entry));
+                    }
+                } else {
                     add_to_hash_table(pmem, log_entry->id, pointer_to_offset(pmem, log_entry));
                 }
             } else {
-                add_to_hash_table(pmem, log_entry->id, pointer_to_offset(pmem, log_entry));
-            }
+                freed += log_entry_size;
+            } 
+            pos += log_entry_size;
         }
-        
-        pos += log_entry_size;
     }
 }
 
